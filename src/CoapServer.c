@@ -2,55 +2,24 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <coap/coap.h>
-#include <coap/option.h>
 
 #define LED_PIN   0
 #define PIR_PIN   7
-
-static int printOptions(coap_pdu_t* pRequest, coap_opt_iterator_t* pOptOterator)
-{
-	int status = 1;
-	coap_opt_t* pOptions;
-	while (pOptions = coap_option_next(pOptIterator))
-	{
-		if ( pOptIterator->type != COAP_OPTION_URI_QUERY )
-		{
-			continue;
-		}
-		
-		char xBuffer[128] = {0};
-		strncpy(xBuffer, COAP_OPT_VALUE(pOptions), COAP_OPT_LENGTH(pOptions));
-		printf("option len %d\n      %s\n", COAP_OPT_LENGTH(pOptions), xBuffer);
-		status = 1;
-		break;
-	}
-	
-	return status;
-}
 
 static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
 {
-	static int count = 0;
 	unsigned char buffer[3];
-	const char* pResponseData = "{\"alarm\": {\"id\": \"DEV-10-147\", \"location\": \"Rondebosch, Cape Town\", \"status:\": \"ON\"}}";
-	char responseBuffer[256] = {0};
-	
+	const char* pResponseData = "{\"alarm\": {\"id\": \"DEV-10-147\", \"location\": \"Rondebosch, Cape Town\", \"status\": \"ON\"}}";			
 	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
+
 	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
-	
-	sprintf(responseBuffer, pResponseData, count);
-	coap_add_data(pResponse, strlen(responseBuffer), (unsigned char*)responseBuffer);
-	count++;
+	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
 	
 	if ( pRequest != NULL )
 	{
-		coap_opt_iterator_t optIterator;
 		printf("request %s\n", pResource->uri.s);
-		coap_option_iterator_init(pRequest, &optIterator, COAP_OPT_ALL);
-		
-		while(printOptions(pRequest, &optIterator));
 	}
 	else
 	{
@@ -98,7 +67,6 @@ int main(int argc, char* argv[])
 		}
 		else if( result > 0 && ( FD_ISSET(pContext->sockfd, &readFDS) ) )
 		{
-			printf("---------dispatching read-------\n");
 			coap_read(pContext);
 		}
 		else
@@ -139,4 +107,6 @@ int main(int argc, char* argv[])
 	}
 	* 
 	* */
+	
+//"{\"alarm\": {\"id\": \"DEV-10-147\", \"location\": \"Rondebosch, Cape Town\", \"status\": \"ON\"}}";
 	
