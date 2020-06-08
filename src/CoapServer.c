@@ -9,6 +9,18 @@
 volatile unsigned char* pStatus = "OFF";
 volatile int enabled = 0;
 
+void verifyRequest(coap_pdu_t* pRequest, coap_resource_t* pResource)
+{
+	if ( pRequest != NULL )
+	{
+		printf("request %s\n", pResource->uri.s);
+	}
+	else
+	{
+		printf("request - NONE\n");
+	}
+}
+
 static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
@@ -20,13 +32,30 @@ static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
 	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
 	
-	if ( pRequest != NULL )
+	verifyRequest(pRequest, pResource);
+}
+
+unsigned char* updateStatusState(int data)
+{
+	if ( data == -1 )
 	{
-		printf("request %s\n", pResource->uri.s);
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"error\": POST FAILED,\
+				\"message\": \"unkown setting for status field\"}}";
+	}
+	 
+	if ( data == 0 )
+	{
+		printf("-------- Manually switched off the alarm ---------\n");
+		digitalWrite(LED_PIN, LOW);
+		pStatus = "OFF";	
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": OFF}}";
 	}
 	else
 	{
-		printf("request - NONE\n");
+		printf("-------- Manually switched on the alarm ---------\n");
+		digitalWrite(LED_PIN, HIGH);
+		pStatus = "ON";	
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": ON}}";
 	}
 }
 
@@ -54,15 +83,7 @@ static void enabledHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
 {
-	if ( pRequest != NULL )
-	{
-		printf("request %s\n", pResource->uri.s);
-	}
-	else
-	{
-		printf("request - NONE. Server exits\n");
-		exit(1);
-	}
+	verifyRequest(pRequest, pResource);
 	
 	unsigned char buffer[3];
 	char pResponseData[256] = {0};
@@ -112,24 +133,48 @@ static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
 {
+	verifyRequest(pRequest, pResource);
+	
 	unsigned char buffer[3];
 	char pResponseData[256] = {0};
 	
-	sprintf(pResponseData, 
-			"{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", 
-			pStatus);			
-	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
+	switch ( pRequest->hdr->code )
+	{
+		case COAP_REQUEST_GET:
+			printf("Server: Status Handler: Get request...");
+			sprintf(pResponseData, 
+					"{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", 
+					pStatus);	
+			pResponse->hdr->code = COAP_RESPONSE_CODE(205);
 
-	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
-	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
-	
-	if ( pRequest != NULL )
-	{
-		printf("request %s\n", pResource->uri.s);
-	}
-	else
-	{
-		printf("request - NONE\n");
+			coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+			coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+			break;
+			
+		case COAP_REQUEST_POST:
+			printf("Server: Status Handler: Post request...\n");	
+			pResponse->hdr->code = COAP_RESPONSE_CODE(203);
+			
+			{
+				unsigned char* pData = {0};
+				size_t dataLength;
+				if ( coap_get_data(pRequest, &dataLength, &pData) )
+				{
+					printf("Server: Status Handler: Data Received: %s\n", pData);
+					
+					strcpy(pResponseData, updateStatusState(atoi(pData)));
+				}
+			}
+			
+			coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+			coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+			break;
+			
+		case COAP_REQUEST_PUT:  	// FALL THROUGH
+		case COAP_REQUEST_DELETE:	// FALL THROUGH
+		default:
+			printf("Enable handler error: unknown request.");
+			break;
 	}
 }
 
@@ -176,6 +221,7 @@ int main(int argc, char* argv[])
 	// Initialize coap status resources for the server and register its handler
 	pStatusResource = coap_resource_init((unsigned char*)"status", 6, 0);
 	coap_register_handler(pStatusResource, COAP_REQUEST_GET, statusHandler);
+	coap_register_handler(pStatusResource, COAP_REQUEST_POST, statusHandler);
 	coap_add_resource(pContext, pStatusResource);
 
 	// Initialize coap enabled resources for the server and register its handler
