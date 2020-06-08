@@ -30,28 +30,80 @@ static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 	}
 }
 
+unsigned char* updateEnabledState(int data)
+{
+	if ( data == -1 )
+	{
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"error\": POST FAILED,\
+				\"message\": \"unkown setting for enable field\"}}";
+	}
+	 
+	if ( data == 0 )
+	{
+		enabled = 0;
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": false}}";
+	}
+	else
+	{
+		enabled = 1;
+		return "{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": true}}";
+	}
+}
+
 static void enabledHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
 {
-	unsigned char buffer[3];
-	char pResponseData[256] = {0};
-	
-	sprintf(pResponseData, 
-			"{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": %s}}", 
-			(enabled == 1) ? "true" : "false");	
-	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
-
-	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
-	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
-	
 	if ( pRequest != NULL )
 	{
 		printf("request %s\n", pResource->uri.s);
 	}
 	else
 	{
-		printf("request - NONE\n");
+		printf("request - NONE. Server exits\n");
+		exit(1);
+	}
+	
+	unsigned char buffer[3];
+	char pResponseData[256] = {0};
+	
+	switch ( pRequest->hdr->code )
+	{
+		case COAP_REQUEST_GET:
+			printf("Server: Enable Handler: Get request...");
+			sprintf(pResponseData, 
+					"{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": %s}}", 
+					(enabled == 1) ? "true" : "false");	
+			pResponse->hdr->code = COAP_RESPONSE_CODE(205);
+
+			coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+			coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+			break;
+			
+		case COAP_REQUEST_POST:
+			printf("Server: Enable Handler: Post request...\n");	
+			pResponse->hdr->code = COAP_RESPONSE_CODE(203);
+			
+			{
+				unsigned char* pData = {0};
+				size_t dataLength;
+				if ( coap_get_data(pRequest, &dataLength, &pData) )
+				{
+					printf("Server: Enable Handler: Data Received: %s\n", pData);
+					
+					strcpy(pResponseData, updateEnabledState(atoi(pData)));
+				}
+			}
+			
+			coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+			coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+			break;
+			
+		case COAP_REQUEST_PUT:  	// FALL THROUGH
+		case COAP_REQUEST_DELETE:	// FALL THROUGH
+		default:
+			printf("Enable handler error: unknown request.");
+			break;
 	}
 }
 
@@ -129,6 +181,7 @@ int main(int argc, char* argv[])
 	// Initialize coap enabled resources for the server and register its handler
 	pEnabledResource = coap_resource_init((unsigned char*)"enabled", 7, 0);
 	coap_register_handler(pEnabledResource, COAP_REQUEST_GET,  enabledHandler);
+	coap_register_handler(pEnabledResource, COAP_REQUEST_POST,  enabledHandler);
 	coap_add_resource(pContext, pEnabledResource);
 	
 	
@@ -175,24 +228,3 @@ int main(int argc, char* argv[])
 	return 0;
 }
 
-
-/*
-	
-	while(1)
-	{
-		if(digitalRead(PIR_PIN) == 0)
-		{
-			digitalWrite(LED_PIN, LOW);
-			printf("|       no motion detected      |\n");
-		}
-		else
-		{
-
-		}
-		delay(1000);
-	}
-	* 
-	* */
-	
-//"{\"alarm\": {\"id\": \"DEV-10-147\", \"location\": \"Rondebosch, Cape Town\", \"status\": \"ON\"}}";
-	
