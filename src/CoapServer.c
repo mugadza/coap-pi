@@ -6,6 +6,8 @@
 #define LED_PIN   0
 #define PIR_PIN   7
 
+static unsigned char* pStatus = "OFF";
+
 static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
@@ -33,7 +35,8 @@ static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
 {
 	unsigned char buffer[3];
-	const char* pResponseData = "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": \"ON\"}}";			
+	char pResponseData[256] = {0};
+	sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", pStatus);			
 	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
 
 	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
@@ -47,6 +50,13 @@ static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 	{
 		printf("request - NONE\n");
 	}
+}
+
+void motionSensorHandler(void)
+{
+	printf("-------- motion detected ---------\n");
+	digitalWrite(LED_PIN, HIGH);
+	pStatus = "ON";	
 }
 
 int main(int argc, char* argv[])
@@ -79,6 +89,24 @@ int main(int argc, char* argv[])
 	coap_register_handler(pStatusResource, COAP_REQUEST_GET, statusHandler);
 	coap_add_resource(pContext, pStatusResource);
 	
+	// Setup and ISR for the sensor
+	if(wiringPiSetup() < -1)
+	{
+		printf("wiringPi config failed!");
+		exit(1);	
+	}
+
+	pinMode(LED_PIN, OUTPUT);
+	//pinMode(PIR_PIN, INPUT);
+
+	digitalWrite(LED_PIN,LOW);
+	
+	if(wiringPiISR(PIR_PIN, INT_EDGE_RISING, &motionSensorHandler) < -1)
+	{
+		printf("Unable to seup ISR on PIR pin!\n");
+		exit(1);	
+	}
+	
 	printf("---------sever running-------\n");
 	while(1)
 	{
@@ -107,17 +135,7 @@ int main(int argc, char* argv[])
 
 
 /*
-	if(wiringPiSetup() == -1)
-	{
-		printf("wiringPi config failed!");
-		exit(1);	
-	}
-
-	pinMode(LED_PIN, OUTPUT);
-	pinMode(PIR_PIN, INPUT);
-
-	digitalWrite(LED_PIN,LOW);
-
+	
 	while(1)
 	{
 		if(digitalRead(PIR_PIN) == 0)
@@ -127,8 +145,7 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			printf("|       motion detected         |\n");
-			digitalWrite(LED_PIN, HIGH);
+
 		}
 		delay(1000);
 	}
