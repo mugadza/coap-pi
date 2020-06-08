@@ -6,7 +6,8 @@
 #define LED_PIN   0
 #define PIR_PIN   7
 
-static unsigned char* pStatus = "OFF";
+volatile unsigned char* pStatus = "OFF";
+volatile int enabled = 0;
 
 static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
@@ -29,6 +30,31 @@ static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 	}
 }
 
+static void enabledHandler(coap_context_t* pContext, coap_resource_t* pResource,
+						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
+						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
+{
+	unsigned char buffer[3];
+	char pResponseData[256] = {0};
+	
+	sprintf(pResponseData, 
+			"{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": %s}}", 
+			(enabled == 1) ? "true" : "false");	
+	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
+
+	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+	
+	if ( pRequest != NULL )
+	{
+		printf("request %s\n", pResource->uri.s);
+	}
+	else
+	{
+		printf("request - NONE\n");
+	}
+}
+
 
 static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
@@ -36,7 +62,10 @@ static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 {
 	unsigned char buffer[3];
 	char pResponseData[256] = {0};
-	sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", pStatus);			
+	
+	sprintf(pResponseData, 
+			"{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", 
+			pStatus);			
 	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
 
 	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
@@ -54,9 +83,16 @@ static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
 
 void motionSensorHandler(void)
 {
-	printf("-------- motion detected ---------\n");
-	digitalWrite(LED_PIN, HIGH);
-	pStatus = "ON";	
+	if( enabled == 1 )
+	{		
+		printf("-------- motion detected - alarm enabled ---------\n");
+		digitalWrite(LED_PIN, HIGH);
+		pStatus = "ON";	
+	}
+	else
+	{
+		printf("-------- motion detected - alarm disabled ---------\n");
+	}
 }
 
 int main(int argc, char* argv[])
@@ -65,6 +101,7 @@ int main(int argc, char* argv[])
 	coap_address_t serverAddress;
 	coap_resource_t* pHelloResource;
 	coap_resource_t* pStatusResource;
+	coap_resource_t* pEnabledResource;
 	
 	// Initialize CoAP server socket
 	coap_address_init(&serverAddress);
@@ -84,10 +121,16 @@ int main(int argc, char* argv[])
 	coap_register_handler(pHelloResource, COAP_REQUEST_GET, helloHandler);
 	coap_add_resource(pContext, pHelloResource);
 
-	// Initialize coap hello resources for the server and register its handler
+	// Initialize coap status resources for the server and register its handler
 	pStatusResource = coap_resource_init((unsigned char*)"status", 6, 0);
 	coap_register_handler(pStatusResource, COAP_REQUEST_GET, statusHandler);
 	coap_add_resource(pContext, pStatusResource);
+
+	// Initialize coap enabled resources for the server and register its handler
+	pEnabledResource = coap_resource_init((unsigned char*)"enabled", 7, 0);
+	coap_register_handler(pEnabledResource, COAP_REQUEST_GET,  enabledHandler);
+	coap_add_resource(pContext, pEnabledResource);
+	
 	
 	// Setup and ISR for the sensor
 	if(wiringPiSetup() < -1)
@@ -97,7 +140,6 @@ int main(int argc, char* argv[])
 	}
 
 	pinMode(LED_PIN, OUTPUT);
-	//pinMode(PIR_PIN, INPUT);
 
 	digitalWrite(LED_PIN,LOW);
 	
