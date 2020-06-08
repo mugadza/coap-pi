@@ -28,11 +28,33 @@ static void helloHandler(coap_context_t* pContext, coap_resource_t* pResource,
 }
 
 
+static void statusHandler(coap_context_t* pContext, coap_resource_t* pResource,
+						 const coap_endpoint_t* pLocalInterface, coap_address_t* pPeer,
+						 coap_pdu_t* pRequest, coap_pdu_t* pToken, coap_pdu_t* pResponse)
+{
+	unsigned char buffer[3];
+	const char* pResponseData = "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": \"ON\"}}";			
+	pResponse->hdr->code = COAP_RESPONSE_CODE(205);
+
+	coap_add_option(pResponse, COAP_OPTION_CONTENT_TYPE, coap_encode_var_bytes(buffer, COAP_MEDIATYPE_TEXT_PLAIN), buffer);
+	coap_add_data(pResponse, strlen(pResponseData), (unsigned char*)pResponseData);
+	
+	if ( pRequest != NULL )
+	{
+		printf("request %s\n", pResource->uri.s);
+	}
+	else
+	{
+		printf("request - NONE\n");
+	}
+}
+
 int main(int argc, char* argv[])
 {
 	coap_context_t* pContext;
 	coap_address_t serverAddress;
 	coap_resource_t* pHelloResource;
+	coap_resource_t* pStatusResource;
 	
 	// Initialize CoAP server socket
 	coap_address_init(&serverAddress);
@@ -47,10 +69,15 @@ int main(int argc, char* argv[])
 		exit(EXIT_FAILURE);
 	}
 	
-	// Initialize coap resources for the server and register its handler
+	// Initialize coap hello resources for the server and register its handler
 	pHelloResource = coap_resource_init((unsigned char*)"hello", 5, 0);
 	coap_register_handler(pHelloResource, COAP_REQUEST_GET, helloHandler);
 	coap_add_resource(pContext, pHelloResource);
+
+	// Initialize coap hello resources for the server and register its handler
+	pStatusResource = coap_resource_init((unsigned char*)"status", 6, 0);
+	coap_register_handler(pStatusResource, COAP_REQUEST_GET, statusHandler);
+	coap_add_resource(pContext, pStatusResource);
 	
 	printf("---------sever running-------\n");
 	while(1)
