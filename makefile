@@ -1,6 +1,6 @@
 .RECIPEPREFIX +=
 CC = gcc
-CFLAGS = -lm -lrt -lwiringPi -lcoap-1 -lpthread -lfastjson  -DWITH_POSIX
+CFLAGS = -lm -w -lrt -lwiringPi -lcoap-1 -lpthread -lfastjson  -DWITH_POSIX
 
 PROG = bin/*
 OBJS = obj/*
