@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+
 #include "alarm_server.h"
 
 #define PUB_KEY_FILE_NAME   "../libs/coap_dtls/raw_keys/server_pub_key.txt"
@@ -23,6 +24,9 @@ int main(int argc, char **argv)
     {
         return EXIT_FAILURE;
     }
+    
+    setup_raspberry_pi();
+    
     result = alarm_server_create(&server,
                              argv[1],
                              argv[2]);

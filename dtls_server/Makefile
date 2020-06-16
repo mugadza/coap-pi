@@ -54,6 +54,7 @@ I1 = ../libs/coap_dtls/lib/include
 S1 = ../libs/coap_dtls/lib/src
 CC_ ?= gcc
 CFLAGS = -Wall \
+	 -lwiringPi -lpthread  \
          -I$(I1)
 CFLAGS += $(IP6_CFLAGS)
 CFLAGS += $(DTLS_CFLAGS)
@@ -78,7 +79,7 @@ PROG = alarm_server
 RM = /bin/rm -f
 
 $(PROG): $(OBJS)
-	$(LD_) $(LDFLAGS) $(OBJS) -o $@ $(LIBS)
+	$(LD_) $(LDFLAGS) $(CFLAGS)  $(OBJS) -o $@ $(LIBS)
 
 %.o: %.c $(INCS)
 	$(CC_) $(CFLAGS) -c $<

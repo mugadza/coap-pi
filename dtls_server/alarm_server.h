@@ -9,6 +9,7 @@ typedef struct
 }
 alarm_server_t;
 
+void setup_raspberry_pi();
 int alarm_server_init(const char* pPrivateKeyFilename, const char* pPublicKeyFilename, const char* pAccessFilename);
 void alarm_server_deinit(void);
 int alarm_server_create(alarm_server_t *pServer, const char *pHost, const char *pPort);

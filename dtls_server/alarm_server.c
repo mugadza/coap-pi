@@ -2,6 +2,8 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wiringPi.h>
+
 #include "alarm_server.h"
 #include "coap_msg.h"
 #include "coap_mem.h"
@@ -17,8 +19,45 @@
 #define ALARM_SERVER_LARGE_BUF_NUM     32                  
 #define ALARM_SERVER_LARGE_BUF_LEN     8192
 
+#define LED_PIN   0
+#define PIR_PIN   7
+
 volatile char* pStatus = "OFF";
 volatile int enabled = 0;
+
+void motion_sensor_handler()
+{
+	if( enabled == 1 )
+	{		
+		printf("-------- motion detected - alarm enabled ---------\n");
+		digitalWrite(LED_PIN, HIGH);
+		pStatus = "ON";	
+	}
+	else
+	{
+		printf("-------- motion detected - alarm disabled ---------\n");
+	}
+}
+
+void setup_raspberry_pi()
+{
+    // Setup and ISR for the sensor
+	if(wiringPiSetup() < -1)
+	{
+		printf("wiringPi config failed!");
+		exit(1);	
+	}
+
+	pinMode(LED_PIN, OUTPUT);
+
+	digitalWrite(LED_PIN,LOW);
+	
+	if(wiringPiISR(PIR_PIN, INT_EDGE_RISING, &motion_sensor_handler) < -1)
+	{
+		printf("Unable to seup ISR on PIR pin!\n");
+		exit(1);	
+	}
+}
 
 void update_status_state(int data, char* pResponseData)
 {
@@ -32,13 +71,13 @@ void update_status_state(int data, char* pResponseData)
 	else if ( data == 0 )
 	{
 		printf("-------- Manually switched off the alarm ---------\n");
-//		digitalWrite(LED_PIN, LOW);
+		digitalWrite(LED_PIN, LOW);
 		pStatus = "OFF";	
 	}
 	else
 	{
 		printf("-------- Manually switched on the alarm ---------\n");
-//		digitalWrite(LED_PIN, HIGH);
+		digitalWrite(LED_PIN, HIGH);
 		pStatus = "ON";	
 	}
     

@@ -291,9 +291,6 @@ int alarm_client_post_status(alarm_client_t *client, char *buf, size_t len)
     return n;
 }
 
-
-//-------------------------------------------------------------------------------
-
 int alarm_client_get_enabled(alarm_client_t *client, char *buf, size_t len)
 {
     coap_msg_t resp = {0};
