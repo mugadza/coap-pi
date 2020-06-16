@@ -130,8 +130,8 @@ int time_client_get_time(time_client_t *client, char *buf, size_t len)
     coap_msg_create(&req);
     coap_msg_set_type(&req, COAP_MSG_CON);
     coap_msg_set_code(&req, COAP_MSG_REQ, COAP_MSG_GET);
-    coap_log_info("Sending GET /time request");
-    ret = coap_msg_add_op(&req, COAP_MSG_URI_PATH, 4, "time");
+    coap_log_info("Sending GET /status request");
+    ret = coap_msg_add_op(&req, COAP_MSG_URI_PATH, 6, "status");
     if (ret < 0)
     {
         coap_log_error("Failed to set URI path in request message");
@@ -179,7 +179,7 @@ int time_client_get_time(time_client_t *client, char *buf, size_t len)
         coap_msg_destroy(&req);
         return -ENOSPC;
     }
-    if (strcmp(uri_path_buf, "/time") != 0)
+    if (strcmp(uri_path_buf, "/status") != 0)
     {
         coap_log_error("Received response message with invalid URI path: '%s'", uri_path_buf);
         coap_msg_destroy(&resp);

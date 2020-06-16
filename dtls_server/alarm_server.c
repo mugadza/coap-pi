@@ -17,6 +17,25 @@
 #define ALARM_SERVER_LARGE_BUF_NUM     32                                    
 #define ALARM_SERVER_LARGE_BUF_LEN     8192              
 
+int set_response_uri_and_payload(char* payload_buf, int uri_path_len, char* resource_path,coap_msg_t *pResponse)
+{
+    int result = 0;
+    
+    result = coap_msg_add_op(pResponse, COAP_MSG_URI_PATH, uri_path_len, resource_path);
+    if (result < 0)
+    {
+        coap_log_error("Failed to set URI path in response message. URI: %s", resource_path);
+        return result;
+    }
+    result = coap_msg_set_payload(pResponse, payload_buf, strlen(payload_buf));
+    if (result < 0)
+    {
+        coap_log_error("Failed to set payload in response message. URI: %s", resource_path);
+        return result;
+    }
+    return result;
+}
+
 static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_msg_t *pRequest, coap_msg_t *pResponse)
 {
     unsigned code_detail = 0;
@@ -34,13 +53,19 @@ static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_ms
         }
 
         /* perform action */
-        sprintf(payload_buf, 
-					"{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}\n", 
-					"OFF");
+        sprintf(payload_buf, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", "OFF");
         
         /* generate response */
         coap_msg_set_code(pResponse, COAP_MSG_SUCCESS, COAP_MSG_CONTENT);
-        result = coap_msg_add_op(pResponse, COAP_MSG_URI_PATH, 4, "status");
+        
+        result = set_response_uri_and_payload(payload_buf, 6, "status", pResponse);
+        if (result < 0)
+        {
+            coap_log_error("Failed to set payload and URI in response message");
+            return result;
+        }
+/////
+     /*   result = coap_msg_add_op(pResponse, COAP_MSG_URI_PATH, 5, "status");
         if (result < 0)
         {
             coap_log_error("Failed to set URI path in response message");
@@ -51,7 +76,8 @@ static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_ms
         {
             coap_log_error("Failed to set payload in response message");
             return result;
-        }
+        }*/
+/////
         coap_log_info("Sent response with payload: '%s'", payload_buf);
         return 0;
     }
@@ -61,7 +87,6 @@ static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_ms
 
 static int alarm_server_handle(coap_server_trans_t* pTransaction, coap_msg_t* pRequest, coap_msg_t* pResponse)
 {
-    size_t n = 0;
     char uri_path_buf[ALARM_SERVER_URI_PATH_BUF_LEN] = {0};
 
     if (coap_msg_get_ver(pRequest) != COAP_MSG_VER)
@@ -69,25 +94,27 @@ static int alarm_server_handle(coap_server_trans_t* pTransaction, coap_msg_t* pR
         coap_log_error("Received request message with invalid version: %d", coap_msg_get_ver(pRequest));
         return -EBADMSG;
     }
-    n = coap_msg_uri_path_to_str(pRequest, uri_path_buf, sizeof(uri_path_buf));
-    if ((n + 1) > sizeof(uri_path_buf))
-    {
-        coap_log_error("URI path buffer too small by %zd bytes", (n + 1) - sizeof(uri_path_buf));
-        return -ENOSPC;
-    }
+    coap_msg_uri_path_to_str(pRequest, uri_path_buf, sizeof(uri_path_buf));
+    
     coap_log_info("Received request URI path: '%s'", uri_path_buf);
     if (strcmp(uri_path_buf, "/status") == 0)
     {
         return alarm_server_handle_status(pTransaction, pRequest, pResponse);
     }
-    coap_log_warn("URI path not recognised");
-    return coap_msg_set_code(pResponse, COAP_MSG_CLIENT_ERR, COAP_MSG_NOT_FOUND);
+    else if (strcmp(uri_path_buf, "/enabled") == 0)
+    {
+        return -1;//alarm_server_handle_enable(pTransaction, pRequest, pResponse);
+    }
+    else
+    {
+        coap_log_warn("URI path not recognised");
+        return coap_msg_set_code(pResponse, COAP_MSG_CLIENT_ERR, COAP_MSG_NOT_FOUND);
+    }
 }
 
 int alarm_server_init(const char* pPrivateKeyFilename, const char* pPublicKeyFilename, const char* pAccessFilename)
 {
     int result = 0;
-
     coap_log_set_level(COAP_LOG_INFO);
     result = coap_mem_all_create(ALARM_SERVER_SMALL_BUF_NUM, ALARM_SERVER_SMALL_BUF_LEN,
                                  ALARM_SERVER_MEDIUM_BUF_NUM, ALARM_SERVER_MEDIUM_BUF_LEN,
