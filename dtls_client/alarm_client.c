@@ -31,65 +31,55 @@
 #include "coap_msg.h"
 #include "coap_mem.h"
 #include "coap_log.h"
-#ifdef COAP_DTLS_EN
 #include "raw_keys.h"
-#endif
 
-#define TIME_CLIENT_URI_PATH_BUF_LEN  32
-#define TIME_CLIENT_SMALL_BUF_NUM     128                                       /**< Number of buffers in the small memory allocator */
-#define TIME_CLIENT_SMALL_BUF_LEN     256                                       /**< Length of each buffer in the small memory allocator */
-#define TIME_CLIENT_MEDIUM_BUF_NUM    128                                       /**< Number of buffers in the medium memory allocator */
-#define TIME_CLIENT_MEDIUM_BUF_LEN    1024                                      /**< Length of each buffer in the medium memory allocator */
-#define TIME_CLIENT_LARGE_BUF_NUM     32                                        /**< Number of buffers in the large memory allocator */
-#define TIME_CLIENT_LARGE_BUF_LEN     8192                                      /**< Length of each buffer in the large memory allocator */
+#define ALARM_CLIENT_URI_PATH_BUF_LEN  32
+#define ALARM_CLIENT_SMALL_BUF_NUM     128                                    
+#define ALARM_CLIENT_SMALL_BUF_LEN     256                                    
+#define ALARM_CLIENT_MEDIUM_BUF_NUM    128
+#define ALARM_CLIENT_MEDIUM_BUF_LEN    1024
+#define ALARM_CLIENT_LARGE_BUF_NUM     32
+#define ALARM_CLIENT_LARGE_BUF_LEN     8192
 
 
-/* one-time initialisation */
-int time_client_init(const char *priv_key_file_name,
-                     const char *pub_key_file_name,
-                     const char *access_file_name)
+int alarm_client_init(const char *priv_key_file_name, const char *pub_key_file_name, const char *access_file_name)
 {
     int ret = 0;
 
     coap_log_set_level(COAP_LOG_INFO);
-    ret = coap_mem_all_create(TIME_CLIENT_SMALL_BUF_NUM, TIME_CLIENT_SMALL_BUF_LEN,
-                              TIME_CLIENT_MEDIUM_BUF_NUM, TIME_CLIENT_MEDIUM_BUF_LEN,
-                              TIME_CLIENT_LARGE_BUF_NUM, TIME_CLIENT_LARGE_BUF_LEN);
+    ret = coap_mem_all_create(ALARM_CLIENT_SMALL_BUF_NUM, ALARM_CLIENT_SMALL_BUF_LEN,
+                              ALARM_CLIENT_MEDIUM_BUF_NUM, ALARM_CLIENT_MEDIUM_BUF_LEN,
+                              ALARM_CLIENT_LARGE_BUF_NUM, ALARM_CLIENT_LARGE_BUF_LEN);
     if (ret < 0)
     {
         coap_log_error("%s", strerror(-ret));
         return -1;
     }
-#ifdef COAP_DTLS_EN
-    ret = raw_keys_load(priv_key_file_name,
-                        pub_key_file_name,
-                        access_file_name);
+    
+    ret = raw_keys_load(priv_key_file_name, pub_key_file_name, access_file_name);
     if (ret < 0)
     {
         coap_log_error("Unable to load raw public keys");
         coap_mem_all_destroy();
         return -1;
     }
-#endif
+    
     return 0;
 }
 
-void time_client_deinit(void)
+void alarm_client_deinit(void)
 {
     coap_mem_all_destroy();
 }
 
-int time_client_create(time_client_t *client,
-                       const char *host,
-                       const char *port)
+int alarm_client_create(alarm_client_t *client, const char *host, const char *port)
 {
     int ret = 0;
 
-    memset(client, 0, sizeof(time_client_t));
-#ifdef COAP_DTLS_EN
+    memset(client, 0, sizeof(alarm_client_t));
+
     ret = coap_client_create(&client->coap_client,
-                             host,
-                             port,
+                             host, port,
                              raw_keys_get_ecdsa_priv_key(),
                              raw_keys_get_ecdsa_pub_key_x(),
                              raw_keys_get_ecdsa_pub_key_y(),
@@ -97,35 +87,31 @@ int time_client_create(time_client_t *client,
                              raw_keys_get_ecdsa_access_y(),
                              raw_keys_get_ecdsa_access_num(),
                              RAW_KEYS_ECDSA_KEY_LEN);
-#else
-    ret = coap_client_create(&client->coap_client,
-                             host,
-                             port);
-#endif
+
     if (ret < 0)
     {
         coap_log_error("%s", strerror(-ret));
-        memset(client, 0, sizeof(time_client_t));
+        memset(client, 0, sizeof(alarm_client_t));
         return ret;
     }
     return 0;
 }
 
-void time_client_destroy(time_client_t *client)
+void alarm_client_destroy(alarm_client_t *client)
 {
     coap_client_destroy(&client->coap_client);
-    memset(client, 0, sizeof(time_client_t));
+    memset(client, 0, sizeof(alarm_client_t));
 }
 
 
 
-int time_client_get_time(time_client_t *client, char *buf, size_t len)
+int alarm_client_get_status(alarm_client_t *client, char *buf, size_t len)
 {
     coap_msg_t resp = {0};
     coap_msg_t req = {0};
     size_t n = 0;
     char *p = NULL;
-    char uri_path_buf[TIME_CLIENT_URI_PATH_BUF_LEN] = {0};
+    char uri_path_buf[ALARM_CLIENT_URI_PATH_BUF_LEN] = {0};
     int ret = 0;
 
     /* generate request */
@@ -148,7 +134,6 @@ int time_client_get_time(time_client_t *client, char *buf, size_t len)
     {
         if (ret != -1)
         {
-            /* a return value of -1 indicates a DTLS failure which has already been logged */
             coap_log_error("%s", strerror(-ret));
         }
         coap_msg_destroy(&resp);
@@ -205,14 +190,13 @@ int time_client_get_time(time_client_t *client, char *buf, size_t len)
     return n;
 }
 
-
-int alarm_client_post_status(time_client_t *client, char *buf, size_t len)
+int alarm_client_post_status(alarm_client_t *client, char *buf, size_t len)
 {
     coap_msg_t resp = {0};
     coap_msg_t req = {0};
     size_t n = 0;
     char *p = NULL;
-    char uri_path[TIME_CLIENT_URI_PATH_BUF_LEN] = {0};
+    char uri_path[ALARM_CLIENT_URI_PATH_BUF_LEN] = {0};
     int ret = 0;
 
     /* generate request */
@@ -243,7 +227,6 @@ int alarm_client_post_status(time_client_t *client, char *buf, size_t len)
     {
         if (ret != -1)
         {
-            /* a return value of -1 indicates a DTLS failure which has already been logged */
             coap_log_error("%s", strerror(-ret));
         }
         coap_msg_destroy(&resp);

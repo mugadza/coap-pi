@@ -10,9 +10,9 @@
 
 int main(int argc, char **argv)
 {
-    time_client_t client = {0};
+    alarm_client_t client = {0};
     char buf[BUF_LEN] = {0};
-    int ret = 0;
+    int result = 0;
 
     if (argc != 3)
     {
@@ -21,33 +21,31 @@ int main(int argc, char **argv)
         fprintf(stderr, "    port: port number to connect to\n");
         return EXIT_FAILURE;
     }
-    ret = time_client_init(PRIV_KEY_FILE_NAME, PUB_KEY_FILE_NAME, ACCESS_FILE_NAME);
-    if (ret < 0)
+    result = alarm_client_init(PRIV_KEY_FILE_NAME, PUB_KEY_FILE_NAME, ACCESS_FILE_NAME);
+    if (result < 0)
     {
         return EXIT_FAILURE;
     }
-    ret = time_client_create(&client,
-                             argv[1],
-                             argv[2]);
-    if (ret < 0)
+    result = alarm_client_create(&client, argv[1], argv[2]);
+    if (result < 0)
     {
-        time_client_deinit();
+        alarm_client_deinit();
         return EXIT_FAILURE;
     }
 
     //memcpy(buf, argv[3], len);
     memcpy(buf, "1", 2);
-    //ret = time_client_get_time(&client, buf, sizeof(buf));
-    ret = alarm_client_post_status(&client, buf, sizeof(buf));
-    if (ret < 0)
+    //ret = alarm_client_get_status(&client, buf, sizeof(buf));
+    result = alarm_client_post_status(&client, buf, sizeof(buf));
+    if (result < 0)
     {
-        time_client_destroy(&client);
-        time_client_deinit();
+        alarm_client_destroy(&client);
+        alarm_client_deinit();
         return EXIT_FAILURE;
     }
     printf("alarm: '%s'\n", buf);
     
-    time_client_destroy(&client);
-    time_client_deinit();
+    alarm_client_destroy(&client);
+    alarm_client_deinit();
     return EXIT_SUCCESS;
 }
