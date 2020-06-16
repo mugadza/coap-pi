@@ -35,8 +35,11 @@ int main(int argc, char **argv)
 
     //memcpy(buf, argv[3], len);
     memcpy(buf, "1", 2);
-    //ret = alarm_client_get_status(&client, buf, sizeof(buf));
-    result = alarm_client_post_status(&client, buf, sizeof(buf));
+    //result = alarm_client_get_status(&client, buf, sizeof(buf));
+    //result = alarm_client_post_status(&client, buf, sizeof(buf));
+    
+    //result = alarm_client_get_enabled(&client, buf, sizeof(buf));
+    result = alarm_client_post_enabled(&client, buf, sizeof(buf));
     if (result < 0)
     {
         alarm_client_destroy(&client);

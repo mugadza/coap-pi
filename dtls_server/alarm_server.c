@@ -24,35 +24,39 @@ void update_status_state(int data, char* pResponseData)
 {
     if ( data < 0 )
 	{
-        //sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", pStatus);
-        
 		sprintf(pResponseData, "%s", "{\"alarm\": {\"id\": \"DEV-10-147\", \"error\": POST FAILED,\
 				\"message\": \"unkown setting for status field\"}}");
- 
+        return;
 	}
+    
 	else if ( data == 0 )
 	{
 		printf("-------- Manually switched off the alarm ---------\n");
 //		digitalWrite(LED_PIN, LOW);
 		pStatus = "OFF";	
-		//sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", pStatus);
-        
-        //return pResponseData;
-        //return "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": OFF}}";
 	}
 	else
 	{
 		printf("-------- Manually switched on the alarm ---------\n");
 //		digitalWrite(LED_PIN, HIGH);
 		pStatus = "ON";	
-        
-        //return "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": ON}}";
-        
 	}
     
     sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"status\": %s}}", pStatus);
 }
 
+void update_enabled(int data, char* pResponseData)
+{
+    if ( data != 0 && data != 1 )
+	{
+		sprintf(pResponseData, "%s", "{\"alarm\": {\"id\": \"DEV-10-147\", \"error\": POST FAILED,\
+				\"message\": \"unkown setting for enabled field\"}}");
+        return;
+	}
+    enabled = data;	
+	
+    sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": %s}}", (enabled == 1) ? "true" : "false");
+}
 
 int set_response_uri_and_payload(char* payload_buf, int uri_path_len, char* resource_path,coap_msg_t *pResponse)
 {
@@ -105,9 +109,6 @@ static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_ms
         coap_log_info("Received request payload: '%s'", data);
 
         update_status_state(atoi(data), pResponseData);
-        
-        //strcpy(pResponseData, update_status_state(atoi(data)));
-        //sprintf(pResponseData, "xxxxxxxx %s", update_status_state(atoi(data)));   
     }
     else
     {
@@ -127,6 +128,58 @@ static int alarm_server_handle_status(coap_server_trans_t *pTransaction, coap_ms
     return 0;
 }
 
+static int alarm_server_handle_enabled(coap_server_trans_t *pTransaction, coap_msg_t *pRequest, coap_msg_t *pResponse)
+{
+    unsigned code_detail = 0;
+    char pResponseData[ALARM_SERVER_PAYLOAD_BUF_LEN] = {0};
+    int result = 0;
+
+    code_detail = coap_msg_get_code_detail(pRequest);
+    if (code_detail == COAP_MSG_GET)
+    {
+        coap_log_info("Received request method: GET /enabled");
+        
+        sprintf(pResponseData, "{\"alarm\": {\"id\": \"DEV-10-147\", \"enabled\": %s}}", (enabled == 1) ? "true" : "false");
+    }
+    else if (code_detail == COAP_MSG_POST)
+    {
+        coap_log_info("Received request method: POST /enabled");
+        
+        const char* pPayload = coap_msg_get_payload(pRequest);
+        size_t payload_size = coap_msg_get_payload_len(pRequest);
+        if ((pPayload == NULL) || (payload_size == 0))
+        {
+            coap_log_warn("Received request message without payload");
+            return coap_msg_set_code(pResponse, COAP_MSG_CLIENT_ERR, COAP_MSG_BAD_REQ);
+        }
+        
+        char data[1] = {0};
+        
+        memcpy(data, pPayload, payload_size);
+        memset(data + payload_size, 0, sizeof(data) - payload_size);
+        coap_log_info("Received request payload: '%s'", data);
+
+        update_enabled(atoi(data), pResponseData);
+    }
+    else
+    {
+        coap_log_warn("Received request message with unsupported code detail: %d", pResponseData);
+        return coap_msg_set_code(pResponse, COAP_MSG_SERVER_ERR, COAP_MSG_NOT_IMPL);
+    }
+        
+    coap_msg_set_code(pResponse, COAP_MSG_SUCCESS, COAP_MSG_CONTENT);        
+    result = set_response_uri_and_payload(pResponseData, 7, "enabled", pResponse);
+    
+    if (result < 0)
+    {
+        coap_log_error("Failed to set payload and URI in response message");
+        return result;
+    }
+    coap_log_info("Sent response with payload: '%s'", pResponseData);
+    return 0;
+}
+
+
 static int alarm_server_handle(coap_server_trans_t* pTransaction, coap_msg_t* pRequest, coap_msg_t* pResponse)
 {
     char uri_path_buf[ALARM_SERVER_URI_PATH_BUF_LEN] = {0};
@@ -145,7 +198,7 @@ static int alarm_server_handle(coap_server_trans_t* pTransaction, coap_msg_t* pR
     }
     else if (strcmp(uri_path_buf, "/enabled") == 0)
     {
-        return -1;//alarm_server_handle_enable(pTransaction, pRequest, pResponse);
+        return alarm_server_handle_enabled(pTransaction, pRequest, pResponse);
     }
     else
     {
